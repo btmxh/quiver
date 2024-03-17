@@ -289,6 +289,12 @@ class Colour extends Encodable {
         return [f(0) * 255, f(8) * 255, f(4) * 255, this.a].map((x) => Math.round(x));
     }
 
+    typst() {
+      const [h, s, l, a] = this.hsla();
+      return a !== 1? `color.hsl(${h}deg, ${s}%, ${l}%, ${Math.round(a * 100)}%)`
+                    : `color.hsl(${h}deg, ${s}%, ${l}%)`;
+    }
+
     /// `r`, `g`, `b` are expected to take values in `0` to `255`.
     static from_rgba(r, g, b, a = 1) {
         // Algorithm source: https://en.wikipedia.org/wiki/HSL_and_HSV#Formal_derivation

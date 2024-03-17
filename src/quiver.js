@@ -208,6 +208,8 @@ class Quiver {
                 return QuiverImportExport.base64.export(this, settings, options, definitions);
             case "html":
                 return QuiverExport.html.export(this, settings, options, definitions);
+            case "typst":
+                return QuiverExport.typst.export(this, settings, options, definitions);
             default:
                 throw new Error(`unknown export format \`${format}\``);
         }
@@ -1269,30 +1271,21 @@ QuiverExport.typst = new class extends QuiverExport {
       let output = [];
 
       const wrap_boilerplate = (output) => {
-        const seps = {
-            "0.45em": "tiny",
-            "0.90em": "small",
-            "1.35em": "scriptsize",
-            "1.80em": "normal",
-            "2.70em": "large",
-            "3.60em": "huge",
-        };
-        const column_sep = `${options.sep.column.toFixed(2)}em`;
-        const row_sep = `${options.sep.row.toFixed(2)}em`;
-        if(seps.hasOwnProperty(column_sep)) {
-          column_sep = seps[column_sep];
-        }
-        if(seps.hasOwnProperty(row_sep)) {
-          row_sep = seps[row_sep];
-        }
+        let column_sep = `${options.sep.column.toFixed(2)}em`;
+        let row_sep = `${options.sep.row.toFixed(2)}em`;
         let diagram = "";
         let indent = "  ";
         diagram += "#fletcher.diagram(\n";
-        diagram += `${indent}spacing: (column_sep, row_sep),\n`;
+        diagram += `${indent}spacing: (${column_sep}, ${row_sep}),\n`;
         for(const line of output) {
           diagram += `${indent}${line},\n`;
         }
-        diagram += ")\n";
+        diagram += ")";
+        
+        if(settings.get("export.centre_diagram")) {
+          diagram = `$ ${diagram} $`
+        }
+
         return diagram;
       };
 
@@ -1326,6 +1319,8 @@ QuiverExport.typst = new class extends QuiverExport {
           console.assert(source.is_vertex() && target.is_vertex());
           const source_pos = `(${source.position.x}, ${source.position.y})`;
           const target_pos = `(${target.position.x}, ${target.position.y})`;
+          let label = "";
+          let marks = "";
           const params = {};
           switch(edge.options.label_alignment) {
             case "centre":
@@ -1353,12 +1348,12 @@ QuiverExport.typst = new class extends QuiverExport {
             params["stroke"] = edge.options.colour.typst();
           }
 
-          let label = `$${edge.label}$`;
+          label = `$${edge.label}$`;
           if(edge.label_colour.is_not_black()) {
             label = `text(fill: ${edge.label_colour.typst()}, ${label})`;
           }
 
-          if(edge.option.curve !== 0) {
+          if(edge.options.curve !== 0) {
             // temporary
             params["bend"] = `${15 * edge.options.curve}deg`;
           }
@@ -1430,7 +1425,7 @@ QuiverExport.typst = new class extends QuiverExport {
               const arrow = arrow_M2 === ""?
                 `${arrow_M1}${arrow_L}${arrow_M3}`:
                 `${arrow_M1}${arrow_L}${arrow_M2}${arrow_L}${arrow_M3}`;
-              params["mark"] = `"${arrow}"`;
+              marks = `"${arrow}"`;
               break;
 
             case "adjunction":
@@ -1440,12 +1435,12 @@ QuiverExport.typst = new class extends QuiverExport {
               params["mark"] = `"->"`;
           }
 
-          let edge = "edge(${source_pos}, ${target_pos}";
+          let edge_line = `edge(${source_pos}, ${target_pos}, ${label}, ${marks}`;
           for(const [key, value] of Object.entries(params)) {
-            edge += `${key}: ${value}`;
+            edge_line += `, ${key}: ${value}`;
           }
-          edge += ")";
-          output.push(`${edge}`);
+          edge_line += ")";
+          output.push(edge_line);
         }
       }
 
