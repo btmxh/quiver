@@ -4372,7 +4372,7 @@ class Panel {
                     )
                 );
 
-                let port_pane, tip, warning, error, latex_options, embed_options, note, content;
+                let port_pane, latex_tip, typst_tip, warning, error, latex_options, typst_options, embed_options, note, content;
                 let textarea, parse_button, import_success;
 
                 // Select the code for easy copying.
@@ -4431,38 +4431,42 @@ class Panel {
                         const sep_name = seps[sep] || `${sep}em`;
                         slider.label.query_selector(".slider-value").clear().add(sep_name);
                     };
-                    const sep_sliders = {};
-                    const update_sep_slider = (axis) => {
-                        this.sep[axis] = sep_sliders[axis].values();
-                        // Update the output. We ignore `metadata`, which currently does not
-                        // change in response to the settings.
-                        const { data } = modify(ui.quiver.export(
-                            format,
-                            ui.settings,
-                            ui.options(),
-                            ui.definitions(),
-                        ));
-                        update_output(data);
-                        // Update the label.
-                        update_sep_label(sep_sliders[axis]);
+                    const create_sep_slider = () => {
+                      const sep_sliders = {};
+                      const update_sep_slider = (axis) => {
+                          this.sep[axis] = sep_sliders[axis].values();
+                          // Update the output. We ignore `metadata`, which currently does not
+                          // change in response to the settings.
+                          const { data } = modify(ui.quiver.export(
+                              format,
+                              ui.settings,
+                              ui.options(),
+                              ui.definitions(),
+                          ));
+                          update_output(data);
+                          // Update the label.
+                          update_sep_label(sep_sliders[axis]);
+                      };
+                      for (const axis of ["column", "row"]) {
+                          sep_sliders[axis] = new DOM.Multislider(
+                              `${{ "column": "Column", "row": "Row" }[axis]} sep.`, 0.45, 3.6, 0.45,
+                          ).listen("input", () => {
+                              update_sep_slider(axis);
+                              if (sep_sliders[axis].label.parent.class_list.contains("linked")) {
+                                  const other_axis = { column: "row", row: "column" }[axis];
+                                  sep_sliders[other_axis].thumbs[0].set_value(this.sep[axis]);
+                                  update_sep_slider(other_axis);
+                              }
+                          });
+                          sep_sliders[axis].thumbs[0].set_value(this.sep[axis]);
+                          update_sep_label(sep_sliders[axis]);
+                          this.sliders.set(`${axis}_sep`, sep_sliders[axis]);
+                      }
+                      return sep_sliders;
                     };
-                    for (const axis of ["column", "row"]) {
-                        sep_sliders[axis] = new DOM.Multislider(
-                            `${{ "column": "Column", "row": "Row" }[axis]} sep.`, 0.45, 3.6, 0.45,
-                        ).listen("input", () => {
-                            update_sep_slider(axis);
-                            if (sep_sliders[axis].label.parent.class_list.contains("linked")) {
-                                const other_axis = { column: "row", row: "column" }[axis];
-                                sep_sliders[other_axis].thumbs[0].set_value(this.sep[axis]);
-                                update_sep_slider(other_axis);
-                            }
-                        });
-                        sep_sliders[axis].thumbs[0].set_value(this.sep[axis]);
-                        update_sep_label(sep_sliders[axis]);
-                        this.sliders.set(`${axis}_sep`, sep_sliders[axis]);
-                    }
 
-                    tip = new DOM.Element("span", { class: "tip hidden" });
+                    latex_tip = new DOM.Element("span", { class: "tip hidden latex" });
+                    typst_tip = new DOM.Element("span", { class: "tip hidden typst" });
 
                     // Create message regarding, and linking to, `quiver.sty`.
                     const update_package_previous_download = () => {
@@ -4470,17 +4474,17 @@ class Panel {
                             "package-previous-download",
                             CONSTANTS.PACKAGE_VERSION,
                         );
-                        const update = tip.query_selector(".update");
+                        const update = latex_tip.query_selector(".update");
                         if (update !== null) {
                             update.remove();
                         }
                     };
 
-                    tip.add("Remember to include ")
+                    latex_tip.add("Remember to include ")
                         .add(new DOM.Code("\\usepackage{quiver}"))
                         .add(" in your LaTeX preamble. You can install the package using ")
                         .add(new DOM.Link("https://tug.org/texlive/", "TeX Live 2023", true));
-                    tip.add(", or ")
+                    latex_tip.add(", or ")
                         .add(
                             // We would like to simply use `quiver.sty` here, but,
                             // unfortunately, GitHub pages does not permit overriding the
@@ -4497,34 +4501,62 @@ class Panel {
                         .add(" to copy-and-paste.")
                         .add_to(port_pane);
 
-                    const centre_checkbox = new DOM.Element("input", {
+                    const latex_centre_checkbox = new DOM.Element("input", {
                         type: "checkbox",
                         "data-setting": "export.centre_diagram",
                     });
-                    const ampersand_replacement = new DOM.Element("input", {
+                    const latex_ampersand_replacement = new DOM.Element("input", {
                         type: "checkbox",
                         "data-setting": "export.ampersand_replacement",
                     });
-                    const cramped = new DOM.Element("input", {
+                    const latex_cramped = new DOM.Element("input", {
                         type: "checkbox",
                         "data-setting": "export.cramped",
                     });
+                    const latex_sep_sliders = create_sep_slider();
                     latex_options = new DOM.Div({ class: "options latex hidden" })
                         .add(new DOM.Element("label")
-                            .add(centre_checkbox)
+                            .add(latex_centre_checkbox)
                             .add("Centre diagram")
                         )
                         .add(new DOM.Element("label")
-                            .add(ampersand_replacement)
+                            .add(latex_ampersand_replacement)
                             .add("Ampersand replacement")
                         )
                         .add(new DOM.Element("label")
-                            .add(cramped)
+                            .add(latex_cramped)
                             .add("Cramped")
                         )
                         .add(new DOM.Div({ class: "linked-sliders" })
-                            .add(sep_sliders.column.label)
-                            .add(sep_sliders.row.label)
+                            .add(latex_sep_sliders.column.label)
+                            .add(latex_sep_sliders.row.label)
+                        )
+                        .add_to(port_pane);
+                    typst_tip.add("Typst support is experimental via the ")
+                             .add(new DOM.Code("typst-fletcher"))
+                             .add(" package with imports ")
+                             .add(new DOM.Code("node"))
+                             .add(" and ")
+                             .add(new DOM.Code("edge"))
+                             .add(" (import via ")
+                             .add(new DOM.Code(`#import "@preview/fletcher:*.*.*" as fletcher: node, edge`))
+                             .add("). Currently, node/edge labels are not translated from LaTeX to Typst,"
+                                + " so labels have to be written in valid Typst (instead of LaTeX).")
+                             .add_to(port_pane);
+
+                    const typst_centre_checkbox = new DOM.Element("input", {
+                        type: "checkbox",
+                        "data-setting": "export.centre_diagram",
+                    });
+                    const typst_sep_sliders = create_sep_slider();
+                    typst_options = new DOM.Div({ class: "options typst hidden" })
+                        .add(new DOM.Element("label")
+                            .add(typst_centre_checkbox)
+                            .add("Centre diagram")
+                        )
+                        .add(new DOM.Div({ class: "linked-sliders" })
+                            .add(typst_sep_sliders.column.label)
+                            .add(typst_sep_sliders.row.label)
                         )
                         .add_to(port_pane);
 
@@ -4546,9 +4578,10 @@ class Panel {
                         .add_to(port_pane);
 
                     const checkboxes = [
-                        [centre_checkbox, "tikz-cd", "C"],
-                        [ampersand_replacement, "tikz-cd", "A"],
-                        [cramped, "tikz-cd", "R"],
+                        [latex_centre_checkbox, "tikz-cd", "C"],
+                        [latex_ampersand_replacement, "tikz-cd", "A"],
+                        [latex_cramped, "tikz-cd", "R"],
+                        [typst_centre_checkbox, "typst", "C"],
                         [fixed_size_checkbox, "html", "F"],
                     ];
                     const shortcuts = [];
@@ -4919,10 +4952,12 @@ class Panel {
                 } else {
                     // Find the existing import/export pane.
                     port_pane = ui.element.query_selector(".port");
-                    tip = port_pane.query_selector(".tip");
+                    latex_tip = port_pane.query_selector(".tip.latex");
+                    typst_tip = port_pane.query_selector(".tip.typst")
                     warning = port_pane.query_selector("div.warning");
                     error = port_pane.query_selector("div.error");
                     latex_options = port_pane.query_selector(".options.latex");
+                    typst_options = port_pane.query_selector(".options.typst");
                     embed_options = port_pane.query_selector(".options.embed");
                     note = port_pane.query_selector(".note");
                     content = port_pane.query_selector(".code");
@@ -5018,13 +5053,18 @@ class Panel {
                 parse_button.set_attributes({ disabled: "" });
 
                 // Show/hide relevant UI elements.
-                tip.class_list.toggle("hidden", kind !== "export" || format !== "tikz-cd");
+                latex_tip.class_list.toggle("hidden", kind !== "export" || format !== "tikz-cd");
+                typst_tip.class_list.toggle("hidden", kind !== "export" || format !== "typst");
                 warning.class_list.toggle("hidden",
                     unsupported_items.length === 0 && dependencies.size === 0,
                 );
                 latex_options.class_list.toggle(
                     "hidden",
                     kind !== "export" || format !== "tikz-cd",
+                );
+                typst_options.class_list.toggle(
+                    "hidden",
+                    kind !== "export" || format !== "typst",
                 );
                 embed_options.class_list.toggle("hidden", kind !== "export" || format !== "html");
                 const import_tikz_cd = kind !== "import" || format !== "tikz-cd";
@@ -5078,6 +5118,14 @@ class Panel {
             () => display_port_pane("export", "tikz-cd"),
         );
 
+        const export_to_typst = Panel.create_button_with_shortcut(
+            ui,
+            "Typst",
+            "Typst",
+            { key: "Y", modifier: true, context: Shortcuts.SHORTCUT_PRIORITY.Always },
+            () => display_port_pane("export", "typst"),
+        )
+
         this.global = new DOM.Div({ class: "panel global" }).add(
             new DOM.Element("label").add("Import: ")
         ).add(import_from_tikz).add(
@@ -5094,7 +5142,7 @@ class Panel {
               .listen("click", () => {
                   display_port_pane("export", "html");
               })
-        ).add(export_to_latex).add(
+        ).add(export_to_latex).add(export_to_typst).add(
             new DOM.Div({ class: "indicator-container" }).add(
                 new DOM.Element("label").add("Macros: ")
                     .add(
