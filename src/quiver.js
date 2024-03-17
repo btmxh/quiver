@@ -1263,3 +1263,194 @@ style="border-radius: 8px; border: none;">\
         };
     }
 };
+
+QuiverExport.typst = new class extends QuiverExport {
+    export(quiver, settings, options, definitions) {
+      let output = [];
+
+      const wrap_boilerplate = (output) => {
+        const seps = {
+            "0.45em": "tiny",
+            "0.90em": "small",
+            "1.35em": "scriptsize",
+            "1.80em": "normal",
+            "2.70em": "large",
+            "3.60em": "huge",
+        };
+        const column_sep = `${options.sep.column.toFixed(2)}em`;
+        const row_sep = `${options.sep.row.toFixed(2)}em`;
+        if(seps.hasOwnProperty(column_sep)) {
+          column_sep = seps[column_sep];
+        }
+        if(seps.hasOwnProperty(row_sep)) {
+          row_sep = seps[row_sep];
+        }
+        let diagram = "";
+        let indent = "  ";
+        diagram += "#fletcher.diagram(\n";
+        diagram += `${indent}spacing: (column_sep, row_sep),\n`;
+        for(const line of output) {
+          diagram += `${indent}${line},\n`;
+        }
+        diagram += ")\n";
+        return diagram;
+      };
+
+
+      if(quiver.is_empty()) {
+        return {
+          data: wrap_boilerplate(output),
+          metadata: {},
+        }
+      }
+
+      for(const vertex of quiver.cells[0]) {
+        let label = `$${vertex.label}$`;
+        if(vertex.label !== "" && vertex.label_colour.is_not_black()) {
+          label = `text(fill: ${vertex.label_colour.typst()}, ${label})`;
+        }
+
+        output.push(`node((${vertex.position.x}, ${vertex.position.y}), ${label})`);
+      }
+
+      for(let level = 1; level < quiver.cells.length; ++level) {
+        // WIP: k-cells with k >= 2 is currently unsupported
+        // See: https://github.com/Jollywatt/typst-fletcher/issues/16
+        if(level > 1) {
+          break;
+        }
+        for(const edge of quiver.cells[level]) {
+          const source = edge.source;
+          const target = edge.target;
+
+          console.assert(source.is_vertex() && target.is_vertex());
+          const source_pos = `(${source.position.x}, ${source.position.y})`;
+          const target_pos = `(${target.position.x}, ${target.position.y})`;
+          const params = {};
+          switch(edge.options.label_alignment) {
+            case "centre":
+              params["label-side"] = "center";
+              params["label-fill"] = "true";
+              break;
+            case "over":
+              params["label-side"] = "center";
+              params["label-fill"] = "false";
+              break;
+            case "right":
+              params["label-side"] = "right";
+              break;
+          }
+
+          if(edge.options.label_position !== 50) {
+            params["label-pos"] = edge.options.label_position / 100;
+          }
+
+          if(edge.options.offset !== 0) {
+            params["shift"] = `${edge.options.offset}pt`;
+          }
+
+          if(edge.options.colour.is_not_black()) {
+            params["stroke"] = edge.options.colour.typst();
+          }
+
+          let label = `$${edge.label}$`;
+          if(edge.label_colour.is_not_black()) {
+            label = `text(fill: ${edge.label_colour.typst()}, ${label})`;
+          }
+
+          if(edge.option.curve !== 0) {
+            // temporary
+            params["bend"] = `${15 * edge.options.curve}deg`;
+          }
+
+          switch(edge.options.style.name) {
+            case "arrow":
+              // arrow building
+              // refer to the manual for the meanings of the strings M1, M2, M3 and L
+              let arrow_M1 = "";
+              let arrow_M2 = "";
+              let arrow_M3 = "";
+              let arrow_L = "";
+              
+              switch(edge.options.style.body.name) {
+                case "barred":
+                  arrow_M2 = "|";
+                  // intentional fallthrough
+                case "cell":
+                  if(edge.options.level == 1) {
+                    arrow_L = "-";
+                  } else if(edge.options.level == 2) {
+                    arrow_L = "=";
+                  } else if(edge.options.level >= 3) {
+                    // typst-fletcher only supports up to triple arrows
+                    arrow_L = "==";
+                  }
+                  break;
+                case "squiggly":
+                  // not supported, falling back to --
+                case "dashed":
+                  arrow_L = "--";
+                  break;
+                case "dotted":
+                  arrow_L = "..";
+                  break;
+                default:
+                  // typst-fletcher does not support arrows without body
+                  arrow_L = "-";
+                  break;
+              }
+
+              switch(edge.options.style.tail.name) {
+                case "maps to":
+                  arrow_M1 = "|";
+                  break;
+                case "mono":
+                  arrow_M1 = ">";
+                  break;
+                case "hook":
+                  arrow_M1 = `hook${edge.options.style.tail.side == "top"? "" : "'"}`;
+                  break;
+                case "arrowhead":
+                  arrow_M1 = "<";
+                  break;
+              }
+
+              switch(edge.options.style.head.name) {
+                case "epi":
+                  arrow_M3 = ">>";
+                  break;
+                case "harpoon":
+                  arrow_M3 = `hook${edge.options.style.tail.side == "top"? "" : "'"}`;
+                  break;
+                case "arrowhead":
+                  arrow_M3 = ">";
+                  break;
+              }
+
+              const arrow = arrow_M2 === ""?
+                `${arrow_M1}${arrow_L}${arrow_M3}`:
+                `${arrow_M1}${arrow_L}${arrow_M2}${arrow_L}${arrow_M3}`;
+              params["mark"] = `"${arrow}"`;
+              break;
+
+            case "adjunction":
+            case "corner":
+            case "corner-inverse":
+              // not sure how this works
+              params["mark"] = `"->"`;
+          }
+
+          let edge = "edge(${source_pos}, ${target_pos}";
+          for(const [key, value] of Object.entries(params)) {
+            edge += `${key}: ${value}`;
+          }
+          edge += ")";
+          output.push(`${edge}`);
+        }
+      }
+
+      return {
+        data: wrap_boilerplate(output),
+      };
+    }
+}
