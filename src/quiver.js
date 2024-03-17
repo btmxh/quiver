@@ -1355,7 +1355,7 @@ QuiverExport.typst = new class extends QuiverExport {
 
           if(edge.options.curve !== 0) {
             // temporary
-            params["bend"] = `${15 * edge.options.curve}deg`;
+            params["bend"] = `${-15 * edge.options.curve}deg`;
           }
 
           switch(edge.options.style.name) {
