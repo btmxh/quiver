@@ -1286,7 +1286,9 @@ QuiverExport.typst = new class extends QuiverExport {
           diagram = `$ ${diagram} $`
         }
 
-        return diagram;
+        return `// ${
+            QuiverImportExport.base64.export(quiver, settings, options, definitions).data
+        }\n${diagram}`;
       };
 
 
