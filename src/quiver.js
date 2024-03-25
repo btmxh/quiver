@@ -1321,25 +1321,31 @@ QuiverExport.typst = new class extends QuiverExport {
           console.assert(source.is_vertex() && target.is_vertex());
           const source_pos = `(${source.position.x}, ${source.position.y})`;
           const target_pos = `(${target.position.x}, ${target.position.y})`;
-          let label = "";
           let marks = "";
           const params = {};
-          switch(edge.options.label_alignment) {
-            case "centre":
-              params["label-side"] = "center";
-              params["label-fill"] = "true";
-              break;
-            case "over":
-              params["label-side"] = "center";
-              params["label-fill"] = "false";
-              break;
-            case "right":
-              params["label-side"] = "right";
-              break;
-          }
 
-          if(edge.options.label_position !== 50) {
-            params["label-pos"] = edge.options.label_position / 100;
+          let label = `$${edge.label}$`;
+          if(edge.label !== "") {
+            if(edge.label_colour.is_not_black()) {
+              label = `text(fill: ${edge.label_colour.typst()}, ${label})`;
+            }
+            switch(edge.options.label_alignment) {
+              case "centre":
+                params["label-side"] = "center";
+                params["label-fill"] = "true";
+                break;
+              case "over":
+                params["label-side"] = "center";
+                params["label-fill"] = "false";
+                break;
+              case "right":
+                params["label-side"] = "right";
+                break;
+            }
+
+            if(edge.options.label_position !== 50) {
+              params["label-pos"] = edge.options.label_position / 100;
+            }
           }
 
           if(edge.options.offset !== 0) {
@@ -1348,11 +1354,6 @@ QuiverExport.typst = new class extends QuiverExport {
 
           if(edge.options.colour.is_not_black()) {
             params["stroke"] = edge.options.colour.typst();
-          }
-
-          label = `$${edge.label}$`;
-          if(edge.label_colour.is_not_black()) {
-            label = `text(fill: ${edge.label_colour.typst()}, ${label})`;
           }
 
           if(edge.options.curve !== 0) {
